@@ -4,7 +4,7 @@ import joblib
 import numpy as np
 import os
 
-app = FastAPI(title="Iris Prediction API", version="1.0.0")
+app = FastAPI(title="Digits Prediction API", version="1.0.0")
 
 MODEL_PATH = "model/model.pkl"
 model = None
@@ -14,22 +14,16 @@ def load_model():
     global model
     if os.path.exists(MODEL_PATH):
         model = joblib.load(MODEL_PATH)
-        print("✅ Modèle chargé avec succès")
+        print("Modèle chargé avec succès")
     else:
-        print("⚠️  Modèle non trouvé, entraînez d'abord le modèle")
+        print("Modèle non trouvé, entraînez d'abord le modèle")
 
-class IrisInput(BaseModel):
-    sepal_length: float
-    sepal_width: float
-    petal_length: float
-    petal_width: float
+class DigitsInput(BaseModel):
+    pixels: list[float]  # 64 valeurs (image 8x8)
 
 class PredictionOutput(BaseModel):
     prediction: int
-    label: str
     confidence: float
-
-LABELS = {0: "setosa", 1: "versicolor", 2: "virginica"}
 
 @app.get("/health")
 def health():
@@ -39,23 +33,19 @@ def health():
     }
 
 @app.post("/predict", response_model=PredictionOutput)
-def predict(data: IrisInput):
+def predict(data: DigitsInput):
     if model is None:
         raise HTTPException(status_code=503, detail="Modèle non chargé")
 
-    features = np.array([[
-        data.sepal_length,
-        data.sepal_width,
-        data.petal_length,
-        data.petal_width
-    ]])
+    if len(data.pixels) != 64:
+        raise HTTPException(status_code=400, detail="Il faut exactement 64 valeurs de pixels (image 8x8)")
 
+    features = np.array(data.pixels).reshape(1, -1)
     prediction = model.predict(features)[0]
     proba = model.predict_proba(features)[0]
     confidence = float(proba[prediction])
 
     return PredictionOutput(
         prediction=int(prediction),
-        label=LABELS[prediction],
         confidence=round(confidence, 4)
     )
